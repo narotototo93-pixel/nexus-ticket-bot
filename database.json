@@ -1,0 +1,26 @@
+{
+    "blacklist": [],
+    "ticketCounter": 15,
+    "cooldowns": {},
+    "activeTickets": {
+        "1424843447512203284": {
+            "channelId": "1485643540745949425",
+            "ticketNumber": 14,
+            "type": "امن_المنشآت",
+            "ownerId": "1424843447512203284",
+            "createdAt": 1774275423025
+        }
+    },
+    "ticketData": {
+        "1485643540745949425": {
+            "channelId": "1485643540745949425",
+            "ticketNumber": 14,
+            "type": "امن_المنشآت",
+            "ownerId": "1424843447512203284",
+            "createdAt": 1774275423025
+        }
+    },
+    "stats": {
+        "totalTickets": 1
+    }
+}
