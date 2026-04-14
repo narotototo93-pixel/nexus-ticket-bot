@@ -1,0 +1,51 @@
+{
+    "totalCreated": 11,
+    "totalClosed": 0,
+    "totalRatings": 0,
+    "averageRating": 0,
+    "ratingSum": 0,
+    "categoryStats": {
+        "ادارة_الشرطة": {
+            "opened": 2,
+            "closed": 0
+        },
+        "كراج_الميكانيك": {
+            "opened": 1,
+            "closed": 0
+        },
+        "لجنة_الرقابة": {
+            "opened": 1,
+            "closed": 0
+        },
+        "تظلم_على_عقوبة_ادارية": {
+            "opened": 1,
+            "closed": 0
+        },
+        "الدفاع_المدني": {
+            "opened": 4,
+            "closed": 0
+        },
+        "طلب_سكن": {
+            "opened": 1,
+            "closed": 0
+        },
+        "امن_المنشآت": {
+            "opened": 1,
+            "closed": 0
+        }
+    },
+    "staffStats": {
+        "1424843447512203284": {
+            "claimed": 7,
+            "closed": 0
+        },
+        "1215286051187195954": {
+            "claimed": 2,
+            "closed": 0
+        },
+        "1164648308699041952": {
+            "claimed": 1,
+            "closed": 0
+        }
+    }
+}
