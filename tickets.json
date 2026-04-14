@@ -1,0 +1,20 @@
+{
+  "activeTickets": {
+    "1424843447512203284": {
+      "channelId": "1481489065302823037",
+      "ticketNumber": 4399,
+      "type": "ادارة_الشرطة",
+      "userId": "1424843447512203284",
+      "userTag": "salahmoro911",
+      "createdAt": 1773284918895,
+      "responses": {
+        "your_name": "salahmoro",
+        "nickname": "salahmoro",
+        "issue": "vvvvvvvvvvvvvvvvvvvv"
+      }
+    }
+  },
+  "claimedTickets": {
+    "1481292065357955093": "1424843447512203284"
+  }
+}
