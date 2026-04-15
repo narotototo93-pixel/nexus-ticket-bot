@@ -377,6 +377,13 @@ function getMention(ticketType) {
     return `<@&${roleId}>`;
 }
 
+function parseEmoji(emojiStr) {
+    if (!emojiStr) return undefined;
+    const custom = emojiStr.match(/<a?:(\w+):(\d+)>/);
+    if (custom) return { id: custom[2], name: custom[1] };
+    return emojiStr;
+}
+
 // ==================== لوحة تحكم التذاكر ====================
 async function showTicketDashboard(interaction, member, ticketType = null) {
     // ⭐ مهم: نرد فوراً عشان ما يصير "Unknown interaction"
@@ -812,7 +819,7 @@ client.on('messageCreate', async (message) => {
                     .addOptions(Object.entries(ticketForms).map(([key, data]) => ({
                         label: data.title,
                         value: key,
-                        emoji: data.emoji,
+                        emoji: parseEmoji(data.emoji),
                         description: `فتح تذكرة في ${data.title}`
                     })))
             );
@@ -849,7 +856,7 @@ client.on('interactionCreate', async (interaction) => {
                     .addOptions(Object.entries(ticketForms).map(([key, data]) => ({
                         label: data.title,
                         value: key,
-                        emoji: data.emoji,
+                        emoji: parseEmoji(data.emoji),
                         description: `فتح تذكرة في ${data.title}`
                     })))
             );
