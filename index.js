@@ -1,4 +1,5 @@
-const { Client, GatewayIntentBits, ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, InteractionType, EmbedBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, InteractionType, EmbedBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ChannelType, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { joinVoiceChannel, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const fs = require('fs');
 
 const client = new Client({
@@ -685,11 +686,46 @@ async function showTicketDashboard(interaction, member, ticketType = null) {
     });
 }
 
+// ==================== الأوامر Slash ====================
+const slashCommands = [
+    new SlashCommandBuilder().setName('setup-ticket').setDescription('إعداد لوحة نظام التذاكر في هذا الروم'),
+    new SlashCommandBuilder().setName('setup-dashboard').setDescription('إعداد زر لوحة تحكم التذاكر للمشرفين في هذا الروم'),
+    new SlashCommandBuilder().setName('dashboard').setDescription('فتح لوحة تحكم التذاكر للمشرفين'),
+    new SlashCommandBuilder().setName('stats').setDescription('عرض إحصائيات نظام التذاكر'),
+    new SlashCommandBuilder().setName('blacklist').setDescription('إدارة القائمة السوداء')
+        .addSubcommand(sub => sub.setName('add').setDescription('إضافة مستخدم').addUserOption(opt => opt.setName('user').setDescription('المستخدم').setRequired(true)))
+        .addSubcommand(sub => sub.setName('remove').setDescription('إزالة مستخدم').addUserOption(opt => opt.setName('user').setDescription('المستخدم').setRequired(true)))
+        .addSubcommand(sub => sub.setName('list').setDescription('عرض القائمة السوداء'))
+].map(cmd => cmd.toJSON());
+
+async function registerSlashCommands() {
+    const rest = new REST({ version: '10' }).setToken(CONFIG.TOKEN);
+    try {
+        await rest.put(Routes.applicationGuildCommands(client.user.id, CONFIG.GUILD_ID), { body: slashCommands });
+        console.log('✅ تم تسجيل أوامر Slash بنجاح');
+    } catch (e) { console.error('❌ خطأ في تسجيل أوامر Slash:', e.message); }
+}
+
+async function joinVoice24h() {
+    const voiceChannelId = process.env.VOICE_CHANNEL_ID;
+    if (!voiceChannelId) return;
+    try {
+        const guild = await client.guilds.fetch(CONFIG.GUILD_ID);
+        const voiceChannel = await guild.channels.fetch(voiceChannelId).catch(() => null);
+        if (!voiceChannel) return;
+        const connection = joinVoiceChannel({ channelId: voiceChannel.id, guildId: guild.id, adapterCreator: guild.voiceAdapterCreator, selfDeaf: true, selfMute: false });
+        connection.on(VoiceConnectionStatus.Disconnected, async () => { try { await entersState(connection, VoiceConnectionStatus.Connecting, 5000); } catch { setTimeout(() => joinVoice24h(), 10000); } });
+        console.log(`✅ انضم البوت للروم الصوتي: ${voiceChannel.name}`);
+    } catch (e) { setTimeout(() => joinVoice24h(), 30000); }
+}
+
 // ==================== events ====================
-client.once('ready', () => {
+client.once('clientReady', async () => {
     loadBlacklist();
     loadStats();
-    console.log(`✅ 𝐍𝐞𝐱𝐮𝐬 𝐑𝐨𝐥𝐞𝐏𝐥𝐚𝐲 Ticket System Ready`);
+    await registerSlashCommands();
+    await joinVoice24h();
+    console.log(`✅ 𝐍𝐞𝐱𝐮𝐬 𝐑𝐨𝐥𝐞𝐏𝐥𝐚𝐲 Ticket System Ready — ${client.user.tag}`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -788,6 +824,129 @@ client.on('messageCreate', async (message) => {
 
 client.on('interactionCreate', async (interaction) => {
     
+    // ==================== معالجة أوامر Slash ====================
+    if (interaction.isChatInputCommand()) {
+        const { commandName } = interaction;
+
+        // /setup-ticket — إرسال واجهة فتح التذاكر في الروم الحالي
+        if (commandName === 'setup-ticket') {
+            if (!interaction.member.roles.cache.has(CONFIG.TICKET_ADMIN_ROLE_ID)) {
+                return interaction.reply({ content: '❌ هذا الأمر للمشرفين فقط', ephemeral: true });
+            }
+            const embed = new EmbedBuilder()
+                .setColor(COLORS.PRIMARY)
+                .setTitle('𝐍𝐞𝐱𝐮𝐬 𝐑𝐨𝐥𝐞𝐏𝐥𝐚𝐲 — نظام التذاكر')
+                .setDescription('مرحباً بك في نظام التذاكر 👋\n\nيمكنك من خلال هذا النظام التواصل مع الإدارة لحل مشكلتك\nاختر نوع التذكرة المناسب من القائمة أدناه')
+                .addFields({ name: '⚠️ ملاحظات هامة', value: '• اختر النوع المناسب\n• كن واضحاً في شرح مشكلتك\n• احترم قوانين السيرفر\n• لا تقم بمنشن الإدارة' })
+                .setThumbnail(interaction.guild.iconURL())
+                .setTimestamp()
+                .setFooter({ text: '𝐍𝐞𝐱𝐮𝐬 𝐑𝐨𝐥𝐞𝐏𝐥𝐚𝐲 • Ticket System', iconURL: interaction.guild.iconURL() });
+
+            const row = new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('ticket_menu_main')
+                    .setPlaceholder('📩 اختر نوع التذكرة')
+                    .addOptions(Object.entries(ticketForms).map(([key, data]) => ({
+                        label: data.title,
+                        value: key,
+                        emoji: data.emoji,
+                        description: `فتح تذكرة في ${data.title}`
+                    })))
+            );
+
+            await interaction.channel.send({ embeds: [embed], components: [row] });
+            return interaction.reply({ content: '✅ تم إعداد نظام التذاكر بنجاح في هذا الروم!', ephemeral: true });
+        }
+
+        // /setup-dashboard — إرسال زر لوحة التحكم
+        if (commandName === 'setup-dashboard') {
+            if (!interaction.member.roles.cache.has(CONFIG.TICKET_ADMIN_ROLE_ID)) {
+                return interaction.reply({ content: '❌ هذا الأمر للمشرفين فقط', ephemeral: true });
+            }
+            const embed = new EmbedBuilder()
+                .setColor(COLORS.PRIMARY)
+                .setTitle('📊 لوحة تحكم التذاكر')
+                .setDescription('اضغط على الزر أدناه لفتح لوحة التحكم الخاصة بك\n\n**ملاحظة:** اللوحة تظهر لك وحدك (خاصة)')
+                .setThumbnail(interaction.guild.iconURL())
+                .setFooter({ text: '𝐍𝐞𝐱𝐮𝐬 𝐑𝐨𝐥𝐞𝐏𝐥𝐚𝐲 • Ticket System' })
+                .setTimestamp();
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('open_dashboard_button').setLabel('📊 فتح لوحة التحكم').setStyle(ButtonStyle.Primary).setEmoji('🎫')
+            );
+            await interaction.channel.send({ embeds: [embed], components: [row] });
+            return interaction.reply({ content: '✅ تم إعداد لوحة التحكم بنجاح!', ephemeral: true });
+        }
+
+        // /dashboard — فتح لوحة التحكم مباشرة
+        if (commandName === 'dashboard') {
+            if (!hasPermission(interaction.member)) {
+                return interaction.reply({ content: '❌ ليس لديك صلاحية', ephemeral: true });
+            }
+            await showTicketDashboard(interaction, interaction.member);
+            return;
+        }
+
+        // /stats — إحصائيات التذاكر
+        if (commandName === 'stats') {
+            if (!hasPermission(interaction.member)) {
+                return interaction.reply({ content: '❌ ليس لديك صلاحية', ephemeral: true });
+            }
+            const embed = new EmbedBuilder()
+                .setColor(COLORS.PRIMARY)
+                .setTitle('📊 إحصائيات نظام التذاكر')
+                .addFields(
+                    { name: '🎫 إجمالي التذاكر المفتوحة', value: `${stats.totalCreated || 0}`, inline: true },
+                    { name: '🔒 إجمالي المغلقة', value: `${stats.totalClosed || 0}`, inline: true },
+                    { name: '⭐ إجمالي التقييمات', value: `${stats.totalRatings || 0}`, inline: true },
+                    { name: '📈 متوسط التقييم', value: `${(stats.averageRating || 0).toFixed(2)}/5`, inline: true },
+                    { name: '🔵 تذاكر نشطة الآن', value: `${db.activeTickets.size}`, inline: true }
+                )
+                .setFooter({ text: '𝐍𝐞𝐱𝐮𝐬 𝐑𝐨𝐥𝐞𝐏𝐥𝐚𝐲 • Ticket System' })
+                .setTimestamp();
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
+        // /blacklist
+        if (commandName === 'blacklist') {
+            if (!interaction.member.roles.cache.has(CONFIG.TICKET_ADMIN_ROLE_ID)) {
+                return interaction.reply({ content: '❌ هذا الأمر للمشرفين فقط', ephemeral: true });
+            }
+            const sub = interaction.options.getSubcommand();
+
+            if (sub === 'add') {
+                const target = interaction.options.getUser('user');
+                if (db.blacklist.has(target.id)) return interaction.reply({ content: '❌ المستخدم في القائمة السوداء بالفعل', ephemeral: true });
+                db.blacklist.add(target.id);
+                saveData();
+                const logEmbed = new EmbedBuilder().setColor(COLORS.DANGER).setTitle('🚫 إضافة للقائمة السوداء')
+                    .addFields({ name: 'المستخدم', value: `<@${target.id}>`, inline: true }, { name: 'بواسطة', value: `<@${interaction.user.id}>`, inline: true })
+                    .setTimestamp();
+                await sendLog(client, logEmbed, CONFIG.BLACKLIST_LOG_CHANNEL_ID);
+                return interaction.reply({ content: `✅ تم إضافة <@${target.id}> للقائمة السوداء`, ephemeral: true });
+            }
+
+            if (sub === 'remove') {
+                const target = interaction.options.getUser('user');
+                if (!db.blacklist.has(target.id)) return interaction.reply({ content: '❌ المستخدم ليس في القائمة السوداء', ephemeral: true });
+                db.blacklist.delete(target.id);
+                saveData();
+                return interaction.reply({ content: `✅ تم إزالة <@${target.id}> من القائمة السوداء`, ephemeral: true });
+            }
+
+            if (sub === 'list') {
+                const list = Array.from(db.blacklist);
+                const embed = new EmbedBuilder().setColor(COLORS.WARNING).setTitle('📋 القائمة السوداء')
+                    .setDescription(list.length > 0 ? list.map(id => `• <@${id}>`).join('\n') : 'القائمة السوداء فارغة')
+                    .setFooter({ text: `عدد الأعضاء: ${list.length}` })
+                    .setTimestamp();
+                return interaction.reply({ embeds: [embed], ephemeral: true });
+            }
+        }
+
+        return;
+    }
+
+
     // زر فتح لوحة التحكم الثابت
     if (interaction.isButton() && interaction.customId === 'open_dashboard_button') {
         const member = interaction.member;
